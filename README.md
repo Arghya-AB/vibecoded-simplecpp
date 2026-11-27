@@ -95,8 +95,8 @@ and the objects are linked together, just like a desktop compiler, so quoted
 includes (`#include "utils.h"`) resolve between your files.
 
 The **Format** button next to the file tabs (or `Ctrl`/`Cmd` + `Shift` + `F`)
-runs real clang-format in WebAssembly on the active file. The download button at
-the far right of the top bar saves that file with its exact tab name.
+runs real clang-format in WebAssembly on the active file. The download button
+beside **+** saves that file with its exact tab name.
 While a program is running, **Run** stays disabled and **Stop** terminates it;
 the editor and console are immediately usable again. Drag the borders between
 the editor/output and graphics/console to resize those panels; double-click a

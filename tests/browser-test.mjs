@@ -229,6 +229,9 @@ check('format button formats active file', /int main\(\) \{\n\s+int x = 0;/.test
 
 /* 12. Download saves the active file under its own name. */
 console.log('\nDownload');
+check('download sits beside + in the editor header',
+  (await page.locator('#editor-pane .pane-head #download').count()) === 1 &&
+  (await page.locator('.topbar #download').count()) === 0);
 await page.selectOption('#example-select', 'Multiple files');
 await page.locator('#file-tabs .tab').filter({ hasText: 'shapes.h' }).click();
 await page.locator('#editor .cm-content').click();
