@@ -1,0 +1,42 @@
+#ifndef _GRAPHICSIM_INCLUDED
+#define _GRAPHICSIM_INCLUDED
+
+// Browser port of the simplecpp package.  The public API is unchanged:
+// programs still start with  #include <simplecpp>  and use Turtle, Canvas,
+// Circle, Line, Rectangle, Polygon, Text, Sprite, sim, wait(), COLOR(), ...
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <set>
+#include <string>
+#include <vector>
+
+#define repeat(x) for(int _iterator_i = 0, _iterator_limit = x; _iterator_i < _iterator_limit; _iterator_i++)
+#define main_program int main()
+#define dotimes(n) for(int _i_=0; _i_<n; _i_++)
+
+#include <x11_compat.h>
+#include <common_def.h>
+#include <host.h>
+#include <pose.h>
+#include <spriteInterface.h>
+#include <sprite.h>
+#include <canvas.h>
+#include <line.h>
+#include <circle.h>
+#include <polygon.h>
+#include <rectangle.h>
+#include <turtle.h>
+#include <turtleSim.h>
+#include <sim.h>
+#include <composite.h>
+#include <text.h>
+
+using namespace simplecpp;
+using simplecpp::wait;
+
+#endif

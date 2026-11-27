@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>simplecpp — browser IDE</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2214%22 font-size=%2214%22>⟨⟩</text></svg>" />
+    <script>
+      // GitHub Pages serves static files without custom headers. The service
+      // worker supplies COOP/COEP so SharedArrayBuffer stays available there.
+      // Local dev/preview already sends the headers, so skip it in that case.
+      if (!crossOriginIsolated && 'serviceWorker' in navigator) {
+        var scope = new URL('./', location.href).href;
+        navigator.serviceWorker.register(new URL('coi-serviceworker.js', scope).href, { scope: scope })
+          .then(function () { return navigator.serviceWorker.ready; })
+          .then(function () {
+            if (!navigator.serviceWorker.controller && !sessionStorage.getItem('coi-sw-reload')) {
+              sessionStorage.setItem('coi-sw-reload', '1');
+              location.reload();
+            }
+          })
+          .catch(function () { /* Static hosting still works without isolation. */ });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand"><span class="logo">s++</span> simplecpp <span class="sub">browser port</span></div>
+        <div class="actions">
+          <label for="example-select">Example</label>
+          <select id="example-select"></select>
+          <label for="build-mode">Build</label>
+          <select id="build-mode">
+            <option value="fast" selected>Fast</option>
+            <option value="quality">Quality</option>
+          </select>
+          <label class="check" title="Detect null dereferences, bad alignment, division by zero and missing returns">
+            <input type="checkbox" id="sanitize" /> Sanitize
+          </label>
+          <button id="run" class="primary" title="Compile and run (Ctrl+Enter)">▶ Run</button>
+          <button id="clear" title="Clear console and graphics">Clear</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="pane editor-pane">
+          <div class="pane-head">
+            <div id="file-tabs" class="tabs"></div>
+            <button id="format" title="Format active file (Ctrl+Shift+F)">Format</button>
+            <button id="new-file" class="icon" title="New C++ file">+</button>
+          </div>
+          <div id="editor"></div>
+          <div class="pane-foot" id="editor-foot">C++17/C++20 · compiled entirely in your browser</div>
+        </section>
+
+        <section class="pane output-pane">
+          <div class="graphics-area">
+            <div class="pane-head">
+              <span class="pane-title">Graphics</span>
+              <span id="canvas-title" class="muted"></span>
+            </div>
+            <div id="canvas-wrap">
+              <canvas id="canvas" width="500" height="500" tabindex="0" title="Hover or click here to send keyboard events to the program"></canvas>
+            </div>
+          </div>
+
+          <div class="console-area">
+            <div class="pane-head">
+              <div id="console-tabs" class="tabs">
+                <button data-panel="terminal" class="active">Terminal</button>
+                <button data-panel="errors">Errors</button>
+              </div>
+              <button id="clear-console" class="icon" title="Clear console">⌫</button>
+            </div>
+            <div class="panels">
+              <div id="terminal" class="panel terminal-panel active">
+                <div id="term-log" class="term-log"></div>
+                <div class="term-input-row">
+                  <span class="term-prompt">›</span>
+                  <textarea id="term-input" rows="1" placeholder="Shift+Enter for newline" autocomplete="off" spellcheck="false"></textarea>
+                  <button id="term-send" class="icon" title="Send input">↵</button>
+                </div>
+              </div>
+              <pre id="errors" class="panel"></pre>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span id="status">Ready.</span>
+        <span id="env-info" class="muted"></span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
