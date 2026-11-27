@@ -95,7 +95,12 @@ and the objects are linked together, just like a desktop compiler, so quoted
 includes (`#include "utils.h"`) resolve between your files.
 
 The **Format** button next to the file tabs (or `Ctrl`/`Cmd` + `Shift` + `F`)
-runs real clang-format in WebAssembly on the active file.
+runs real clang-format in WebAssembly on the active file. The download button at
+the far right of the top bar saves that file with its exact tab name.
+While a program is running, **Run** stays disabled and **Stop** terminates it;
+the editor and console are immediately usable again. Drag the borders between
+the editor/output and graphics/console to resize those panels; double-click a
+border to reset it.
 
 ### Files and crashes
 
@@ -108,8 +113,8 @@ A crashing C++ program cannot harm the browser: WebAssembly memory is
 bounds-checked. Out-of-bounds reads usually return zero or nearby garbage
 instead of segfaulting, and a pointer far outside linear memory traps with an
 `out of bounds memory access` error. To make these mistakes easier to find,
-tick **Sanitize** (works in either build mode): it instruments your code and
-reports null pointer dereferences, misaligned accesses, floating-point division
+**Sanitize** is checked by default (it works in either build mode): it
+instruments your code and reports null pointer dereferences, misaligned accesses, floating-point division
 by zero and missing returns with a `file:line:column` in the **Errors** tab,
 e.g.:
 

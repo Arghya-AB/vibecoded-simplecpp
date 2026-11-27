@@ -36,15 +36,19 @@
             <option value="quality">Quality</option>
           </select>
           <label class="check" title="Detect null dereferences, bad alignment, division by zero and missing returns">
-            <input type="checkbox" id="sanitize" /> Sanitize
+            <input type="checkbox" id="sanitize" checked /> Sanitize
           </label>
           <button id="run" class="primary" title="Compile and run (Ctrl+Enter)">▶ Run</button>
+          <button id="stop" class="stop" title="Stop the running program" disabled>■ Stop</button>
           <button id="clear" title="Clear console and graphics">Clear</button>
+          <button id="download" class="icon" title="Download active file" aria-label="Download active file">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v8m0 0 3-3m-3 3L5 6M2 12v2h12v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
       </header>
 
       <main>
-        <section class="pane editor-pane">
+        <section class="pane editor-pane" id="editor-pane">
           <div class="pane-head">
             <div id="file-tabs" class="tabs"></div>
             <button id="format" title="Format active file (Ctrl+Shift+F)">Format</button>
@@ -54,8 +58,13 @@
           <div class="pane-foot" id="editor-foot">C++17/C++20 · compiled entirely in your browser</div>
         </section>
 
-        <section class="pane output-pane">
-          <div class="graphics-area">
+        <div id="main-splitter" class="splitter splitter-vertical" role="separator"
+             aria-orientation="vertical" aria-label="Resize editor and output"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0"
+             title="Drag to resize editor and output (double-click to reset)"></div>
+
+        <section class="pane output-pane" id="output-pane">
+          <div class="graphics-area" id="graphics-area">
             <div class="pane-head">
               <span class="pane-title">Graphics</span>
               <span id="canvas-title" class="muted"></span>
@@ -65,7 +74,12 @@
             </div>
           </div>
 
-          <div class="console-area">
+          <div id="output-splitter" class="splitter splitter-horizontal" role="separator"
+               aria-orientation="horizontal" aria-label="Resize graphics and console"
+               aria-valuemin="0" aria-valuemax="100" aria-valuenow="55" tabindex="0"
+               title="Drag to resize graphics and console (double-click to reset)"></div>
+
+          <div class="console-area" id="console-area">
             <div class="pane-head">
               <div id="console-tabs" class="tabs">
                 <button data-panel="terminal" class="active">Terminal</button>

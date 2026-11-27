@@ -3,7 +3,7 @@ import { cpp } from '@codemirror/lang-cpp';
 import { oneDark } from '@codemirror/theme-one-dark';
 import './styles.css';
 import { defaultFiles, EXAMPLES } from './examples.js';
-import { makeEventBuffer, makeStdinBuffer, pushEvent, pushStdin, EventType } from './shared.js';
+import { makeEventBuffer, makeStdinBuffer, pushEvent, pushStdin, resetEvents, resetStdin, EventType } from './shared.js';
 
 const $ = (id) => document.getElementById(id);
 let files = defaultFiles();
@@ -93,6 +93,81 @@ select.onchange = () => {
 };
 renderTabs();
 
+/* ---------------- resizable panels ---------------- */
+function installSplitter(handle, container, cssVar, axis, minFirst, minSecond, defaultValue, onResize) {
+  const horizontalDrag = axis === 'x';
+  const containerSize = () => horizontalDrag ? container.clientWidth : container.clientHeight;
+  const handleSize = () => horizontalDrag ? handle.offsetWidth : handle.offsetHeight;
+  const pointerRatio = (event) => {
+    const rect = container.getBoundingClientRect();
+    return horizontalDrag
+      ? (event.clientX - rect.left) / rect.width
+      : (event.clientY - rect.top) / rect.height;
+  };
+  const currentRatio = () => parseFloat(container.style.getPropertyValue(cssVar)) / 100 || defaultValue;
+
+  function setRatio(ratio) {
+    const usable = Math.max(1, containerSize() - handleSize());
+    const min = Math.min(0.5, minFirst / usable);
+    const max = Math.max(min, 1 - minSecond / usable);
+    const clamped = Math.max(min, Math.min(max, ratio));
+    container.style.setProperty(cssVar, `${(clamped * 100).toFixed(3)}%`);
+    handle.setAttribute('aria-valuenow', String(Math.round(clamped * 100)));
+    if (onResize) onResize();
+  }
+
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    handle.classList.add('dragging');
+    document.body.classList.add('resizing');
+    document.body.style.cursor = horizontalDrag ? 'col-resize' : 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    const move = (e) => setRatio(pointerRatio(e));
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      handle.classList.remove('dragging');
+      document.body.classList.remove('resizing');
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  });
+
+  handle.addEventListener('keydown', (event) => {
+    const step = event.shiftKey ? 0.1 : 0.02;
+    let ratio = currentRatio();
+    if (event.key === 'Home') ratio = defaultValue;
+    else if (horizontalDrag && event.key === 'ArrowLeft') ratio -= step;
+    else if (horizontalDrag && event.key === 'ArrowRight') ratio += step;
+    else if (!horizontalDrag && event.key === 'ArrowUp') ratio -= step;
+    else if (!horizontalDrag && event.key === 'ArrowDown') ratio += step;
+    else return;
+    event.preventDefault();
+    setRatio(ratio);
+  });
+
+  handle.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    setRatio(defaultValue);
+  });
+
+  return { refresh: () => setRatio(currentRatio()) };
+}
+
+const mainSplitter = installSplitter($('main-splitter'), $('app').querySelector('main'),
+  '--editor-width', 'x', 260, 260, 0.5, () => view.requestMeasure());
+const outputSplitter = installSplitter($('output-splitter'), $('output-pane'),
+  '--graphics-height', 'y', 140, 120, 0.55);
+window.addEventListener('resize', () => { mainSplitter.refresh(); outputSplitter.refresh(); });
+
 /* ---------------- formatter ---------------- */
 // Real clang-format, compiled to WebAssembly. Loaded on first use so it never
 // delays startup. The style is a plain, forgiving default (2 spaces, no tabs).
@@ -124,6 +199,24 @@ async function formatActiveFile() {
   }
 }
 $('format').onclick = formatActiveFile;
+
+/* ---------------- download ---------------- */
+function downloadActiveFile() {
+  files[active].content = view.state.doc.toString();
+  const name = files[active].name;
+  const url = URL.createObjectURL(new Blob([files[active].content], {
+    type: 'text/plain;charset=utf-8',
+  }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setStatus(`Downloaded ${name}.`);
+}
+$('download').onclick = downloadActiveFile;
 
 /* ---------------- console ---------------- */
 // stdout, stderr and the user's stdin all share one terminal-like stream.
@@ -344,41 +437,67 @@ canvas.addEventListener('keydown', (e) => {
 });
 
 /* ---------------- worker ---------------- */
-const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-worker.onmessage = ({ data: msg }) => {
-  switch (msg.type) {
-    case 'status': setStatus(msg.text, 'busy'); break;
-    case 'draw': paint(msg.cmd); break;
-    case 'stdout': append('stdout', msg.text); break;
-    case 'stderr': append('stderr', msg.text); break;
-    case 'compileError':
-    case 'runtimeError':
-      restoreBestFrame();
-      append('errors', msg.text + '\n');
-      showPanel('errors');
-      setStatus(msg.type === 'compileError' ? 'Compilation failed.' : 'Runtime error.', 'error');
-      running = false;
-      $('run').disabled = false;
-      break;
-    case 'done':
-      restoreBestFrame();
-      setStatus(`Finished in ${msg.ms} ms (exit ${msg.result.exitCode}).`);
-      running = false;
-      $('run').disabled = false;
-      break;
-  }
-};
-worker.onerror = (e) => {
-  append('errors', 'Worker error: ' + e.message + '\n');
-  setStatus('Worker error.', 'error');
+function createWorker() {
+  const w = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  w.onmessage = ({ data: msg }) => {
+    switch (msg.type) {
+      case 'status': setStatus(msg.text, 'busy'); break;
+      case 'running': break;
+      case 'draw': paint(msg.cmd); break;
+      case 'stdout': append('stdout', msg.text); break;
+      case 'stderr': append('stderr', msg.text); break;
+      case 'compileError':
+      case 'runtimeError':
+        restoreBestFrame();
+        append('errors', msg.text + '\n');
+        showPanel('errors');
+        setStatus(msg.type === 'compileError' ? 'Compilation failed.' : 'Runtime error.', 'error');
+        running = false;
+        $('run').disabled = false;
+        $('stop').disabled = true;
+        break;
+      case 'done':
+        restoreBestFrame();
+        setStatus(`Finished in ${msg.ms} ms (exit ${msg.result.exitCode}).`);
+        running = false;
+        $('run').disabled = false;
+        $('stop').disabled = true;
+        break;
+    }
+  };
+  w.onerror = (e) => {
+    append('errors', 'Worker error: ' + e.message + '\n');
+    setStatus('Worker error.', 'error');
+    running = false;
+    $('run').disabled = false;
+    $('stop').disabled = true;
+  };
+  return w;
+}
+let worker = createWorker();
+
+function stop() {
+  if (!running) return;
+  // There is no safe way to interrupt a running WebAssembly call: terminating
+  // the worker is the only reliable stop, so replace it with a fresh one.
+  worker.terminate();
+  worker = createWorker();
   running = false;
   $('run').disabled = false;
-};
+  $('stop').disabled = true;
+  resetEvents(eventSab);
+  resetStdin(stdinSab);
+  restoreBestFrame();
+  showPanel('terminal');
+  setStatus('Stopped.');
+}
+$('stop').onclick = stop;
 
 function run() {
   if (running) return;
   running = true;
   $('run').disabled = true;
+  $('stop').disabled = false;
   files[active].content = view.state.doc.toString();
   clearAll();
   showPanel('terminal');

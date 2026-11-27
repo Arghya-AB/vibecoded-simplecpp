@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { firefox } from 'playwright';
 
 const base = process.env.BASE_URL || 'http://localhost:4173/';
@@ -27,6 +28,7 @@ await page.waitForSelector('#editor .cm-content');
 check('cross-origin isolated (SharedArrayBuffer available)',
   await page.evaluate(() => typeof SharedArrayBuffer !== 'undefined'));
 check('build mode defaults to Fast', (await page.inputValue('#build-mode')) === 'fast');
+check('stop button starts disabled', !(await page.isEnabled('#stop')));
 
 const inkPixels = () => page.evaluate(() => {
   const c = document.getElementById('canvas');
@@ -184,14 +186,15 @@ check('file I/O works', /hello file/.test(await stdout()), JSON.stringify(await 
 
 /* 10. Sanitizer reports undefined behaviour instead of a silent bad value. */
 console.log('\nSanitizer');
-check('sanitizer defaults off', !(await page.isChecked('#sanitize')));
+check('sanitizer defaults on', await page.isChecked('#sanitize'));
+await page.uncheck('#sanitize');
 await page.locator('#editor .cm-content').click();
 await page.keyboard.press('ControlOrMeta+A');
 await page.keyboard.insertText('#include <simplecpp>\nint main(){ int* x = 0; cout << *x << std::endl; return 0; }');
 await page.click('#run');
 await waitFinished();
 check('plain build still completes', /Finished in/.test(await status()), await status());
-check('no sanitizer warning by default', !/Undefined behaviour/.test(await errors()));
+check('no sanitizer warning when unchecked', !/Undefined behaviour/.test(await errors()));
 await page.check('#sanitize');
 await page.click('#run');
 await waitFor(/Runtime error/i);
@@ -224,7 +227,25 @@ const formatted = await page.evaluate(() =>
 check('format button formats active file', /int main\(\) \{\n\s+int x = 0;/.test(formatted),
   JSON.stringify(formatted.slice(0, 160)));
 
-/* 12. Compiler diagnostics appear in the errors panel. */
+/* 12. Download saves the active file under its own name. */
+console.log('\nDownload');
+await page.selectOption('#example-select', 'Multiple files');
+await page.locator('#file-tabs .tab').filter({ hasText: 'shapes.h' }).click();
+await page.locator('#editor .cm-content').click();
+await page.keyboard.press('ControlOrMeta+A');
+await page.keyboard.insertText('#ifndef SHAPES_H\n#define SHAPES_H\n// download marker\n#endif\n');
+const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.click('#download'),
+]);
+const saved = await readFile(await download.path(), 'utf8');
+check('download uses the active filename', download.suggestedFilename() === 'shapes.h',
+  download.suggestedFilename());
+check('download contains the active file content', /download marker/.test(saved),
+  JSON.stringify(saved.slice(0, 120)));
+check('download reports status', /Downloaded shapes\.h/.test(await status()), await status());
+
+/* 13. Compiler diagnostics appear in the errors panel. */
 console.log('\nCompile diagnostics');
 await page.selectOption('#example-select', 'Welcome');
 await page.locator('#editor .cm-content').click();
@@ -234,6 +255,69 @@ await page.click('#run');
 await waitFor(/failed|error/i);
 check('syntax error reported', /error:/.test(await errors()), (await errors()).slice(0, 160));
 check('error panel shown', await page.locator('#errors').evaluate(el => el.classList.contains('active')));
+
+/* 14. Stop terminates a running program and leaves a usable worker. */
+console.log('\nStop button');
+await page.locator('#editor .cm-content').click();
+await page.keyboard.press('ControlOrMeta+A');
+await page.keyboard.insertText(
+  '#include <simplecpp>\nint main(){ cout << "started" << endl; wait(10000); cout << "finished" << endl; return 0; }');
+await page.click('#run');
+await page.waitForFunction(() => /started/.test(document.getElementById('term-log').textContent),
+  null, { timeout: 90000 });
+check('stop enabled while running', await page.isEnabled('#stop'));
+await page.click('#stop');
+await page.waitForFunction(() => /Stopped/.test(document.getElementById('status').textContent));
+check('stop prevents later output', !/finished/.test(await stdout()), JSON.stringify(await stdout()));
+check('run re-enabled after stop', await page.isEnabled('#run'));
+check('stop disabled after stop', !(await page.isEnabled('#stop')));
+
+await page.locator('#editor .cm-content').click();
+await page.keyboard.press('ControlOrMeta+A');
+await page.keyboard.insertText('#include <simplecpp>\nint main(){ cout << "again" << endl; return 0; }');
+await page.click('#run');
+await waitFinished();
+check('a fresh worker runs after stop', /again/.test(await stdout()), JSON.stringify(await stdout()));
+
+/* 15. Panel borders can be dragged to resize the layout. */
+console.log('\nResizable panels');
+async function dragHandle(selector, dx, dy) {
+  const box = await page.locator(selector).boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y + dy, { steps: 8 });
+  await page.mouse.up();
+}
+const editorBefore = await page.locator('#editor-pane').boundingBox();
+const outputBefore = await page.locator('#output-pane').boundingBox();
+await dragHandle('#main-splitter', 140, 0);
+const editorAfter = await page.locator('#editor-pane').boundingBox();
+const outputAfter = await page.locator('#output-pane').boundingBox();
+check('vertical border resizes editor', editorAfter.width > editorBefore.width + 100,
+  `${editorBefore.width} -> ${editorAfter.width}`);
+check('vertical border shrinks output', outputAfter.width < outputBefore.width - 100,
+  `${outputBefore.width} -> ${outputAfter.width}`);
+
+const graphicsBefore = await page.locator('#graphics-area').boundingBox();
+const consoleBefore = await page.locator('#console-area').boundingBox();
+await dragHandle('#output-splitter', 0, 80);
+const graphicsAfter = await page.locator('#graphics-area').boundingBox();
+const consoleAfter = await page.locator('#console-area').boundingBox();
+check('horizontal border resizes graphics', graphicsAfter.height > graphicsBefore.height + 50,
+  `${graphicsBefore.height} -> ${graphicsAfter.height}`);
+check('horizontal border shrinks console', consoleAfter.height < consoleBefore.height - 50,
+  `${consoleBefore.height} -> ${consoleAfter.height}`);
+
+await page.dblclick('#main-splitter');
+await page.dblclick('#output-splitter');
+const editorReset = await page.locator('#editor-pane').boundingBox();
+const graphicsReset = await page.locator('#graphics-area').boundingBox();
+check('double-click resets panel sizes',
+  Math.abs(editorReset.width - editorBefore.width) < 3 &&
+  Math.abs(graphicsReset.height - graphicsBefore.height) < 3,
+  `${editorReset.width}/${graphicsReset.height}`);
 
 check('no uncaught browser errors', consoleErrors.length === 0, JSON.stringify(consoleErrors.slice(0, 3)));
 

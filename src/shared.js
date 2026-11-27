@@ -33,6 +33,16 @@ export function resetEvents(sab) {
   Atomics.store(i32, 1, Atomics.load(i32, 0));
 }
 
+export function resetStdin(sab) {
+  if (!sab) return;
+  const i32 = new Int32Array(sab);
+  Atomics.store(i32, 0, 0);
+  Atomics.store(i32, 1, 0);
+  Atomics.store(i32, 3, 0);
+  Atomics.add(i32, 2, 1);
+  Atomics.notify(i32, 2);
+}
+
 export function pushEvent(sab, type, x, y, keycode = 0, state = 0, button = 0, chars = '') {
   if (!sab) return;
   const i32 = new Int32Array(sab);
