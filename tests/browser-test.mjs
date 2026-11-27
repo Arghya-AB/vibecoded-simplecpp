@@ -27,6 +27,7 @@ await page.goto(base, { waitUntil: 'load' });
 await page.waitForSelector('#editor .cm-content');
 check('cross-origin isolated (SharedArrayBuffer available)',
   await page.evaluate(() => typeof SharedArrayBuffer !== 'undefined'));
+check('page title is Simplecpp', (await page.title()) === 'Simplecpp');
 check('build mode defaults to Fast', (await page.inputValue('#build-mode')) === 'fast');
 check('stop button starts disabled', !(await page.isEnabled('#stop')));
 
@@ -67,6 +68,34 @@ await page.click('#run');
 await waitFinished();
 check('turtleSim runs', /Done drawing/.test(await stdout()), (await stdout()).slice(0, 120));
 check('turtleSim draws', (await inkPixels()) > 100, (await inkPixels()) + ' pixels');
+
+/* Fractals example: multi-file project with turtle graphics. */
+console.log('\nFractals example');
+await page.selectOption('#example-select', 'Fractals');
+const fractalTabs = await page.locator('#file-tabs .tab').allTextContents();
+check('fractal source files are loaded',
+  fractalTabs.some(t => /fractals\.h/.test(t)) && fractalTabs.some(t => /fractals\.cpp/.test(t)),
+  JSON.stringify(fractalTabs));
+await page.click('#run');
+await page.waitForFunction(() => /Choose the fractal/.test(document.getElementById('term-log').textContent),
+  null, { timeout: 90000 });
+check('fractal menu is shown', /Fractals available/.test(await stdout()) && /Hilbert Curve/.test(await stdout()));
+check('fractal files compile', !(await errors()).trim(), (await errors()).slice(0, 160));
+await page.fill('#term-input', '6');
+await page.click('#term-send');
+await page.waitForFunction(() => /Click to exit/.test(document.getElementById('term-log').textContent),
+  null, { timeout: 90000 });
+const fractalClick = await page.evaluate(() => {
+  const canvas = document.getElementById('canvas').getBoundingClientRect();
+  const wrap = document.getElementById('canvas-wrap').getBoundingClientRect();
+  return {
+    x: Math.round(Math.max(canvas.left, wrap.left) + 20),
+    y: Math.round(Math.max(canvas.top, wrap.top) + 20),
+  };
+});
+await page.mouse.click(fractalClick.x, fractalClick.y);
+await waitFinished();
+check('fractal drawing renders', (await inkPixels()) > 500, (await inkPixels()) + ' pixels');
 
 /* 4. Events: a real click must reach getClick(). */
 console.log('\nClick and keys');
@@ -321,6 +350,23 @@ check('double-click resets panel sizes',
   Math.abs(editorReset.width - editorBefore.width) < 3 &&
   Math.abs(graphicsReset.height - graphicsBefore.height) < 3,
   `${editorReset.width}/${graphicsReset.height}`);
+
+/* 16. Tab inserts four spaces without moving focus out of the editor. */
+console.log('\nEditor tab key');
+await page.locator('#editor .cm-content').click();
+await page.keyboard.press('ControlOrMeta+A');
+await page.keyboard.insertText('x');
+await page.keyboard.press('Home');
+await page.keyboard.press('Tab');
+const tabbed = await page.evaluate(() =>
+  [...document.querySelectorAll('#editor .cm-line')].map(e => e.textContent).join('\n'));
+check('Tab inserts four spaces', tabbed === '    x', JSON.stringify(tabbed));
+check('Tab keeps focus in the editor',
+  await page.evaluate(() => !!document.activeElement.closest('.cm-editor')));
+await page.keyboard.press('Shift+Tab');
+const outdented = await page.evaluate(() =>
+  [...document.querySelectorAll('#editor .cm-line')].map(e => e.textContent).join('\n'));
+check('Shift+Tab removes the indentation', outdented === 'x', JSON.stringify(outdented));
 
 check('no uncaught browser errors', consoleErrors.length === 0, JSON.stringify(consoleErrors.slice(0, 3)));
 

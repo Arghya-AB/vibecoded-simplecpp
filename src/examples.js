@@ -109,6 +109,162 @@ void drawFlower(double x, double y) {
 }
 ` },
   ],
+  'Fractals': [
+    { name: 'main.cpp', content: `#include <simplecpp>
+#include "fractals.h"
+
+int main() {
+  cout << "Fractals available:\\n"
+          "1. Koch curve\\n"
+          "2. Koch curve (alternating)\\n"
+          "3. Sierpiński Triangle\\n"
+          "4. Binary Tree Canopy\\n"
+          "5. Binary Tree (CS style)\\n"
+          "6. Hilbert Curve\\n"
+          "Choose the fractal to draw: ";
+  int choice; cin >> choice;
+
+  const double width = 800, height = 800, margin = 10;
+  turtleSim("Fractal", width + 2 * margin, height + 2 * margin);
+
+  hide(true);
+
+  if (choice == 1) {
+    penUp(); forward(-width / 2);
+    penDown(); fract::kochCurve(width, 6);
+  } else if (choice == 2) {
+    penUp(); forward(-width / 2);
+    penDown(); fract::kochCurveAlt(width, 1, 6);
+  } else if (choice == 3) {
+    double side = min(width, height * cosine(30));
+    penUp(); right(150); forward(side / (2 * cosine(30))); left(150);
+    penDown(); fract::sTriangle(side, 6);
+  } else if (choice == 4) {
+    penUp(); left(90); forward(-height / 2);
+    penDown(); fract::canopy(height / 4, 10);
+  } else if (choice == 5) {
+    penUp(); right(90); forward(-height / 2);
+    penDown(); fract::binaryTree(height, width, 7);
+  } else if (choice == 6) {
+    int level = 3;
+    double box = min(min(height, width), 20 * (pow(2, level + 1) - 1));
+    double step = box / (pow(2, level + 1) - 1);
+    penUp(); forward(-box / 2); right(90); forward(box / 2); left(90);
+    penDown(); fract::hilbertCurve(step, 1, level);
+  }
+  cout << "Click to exit" << endl;
+  getClick();
+  return 0;
+}
+` },
+    { name: 'fractals.h', content: `#ifndef FRACTALS_H
+#define FRACTALS_H
+
+namespace fract {
+void kochCurve(double len, int level);
+void kochCurveAlt(double len, int sign, int level);
+void sTriangle(double side, int level);
+void canopy(double step, int level, double angle = 45, double ratio = 0.5);
+void binaryTree(double boxHeight, double boxWidth, int levels);
+void hilbertCurve(double step, int sign, int level);
+}
+
+#endif
+` },
+    { name: 'fractals.cpp', content: `#include <simplecpp>
+#include "fractals.h"
+
+void fract::kochCurve(double len, int level) {
+  if (level == 0) {
+    forward(len);
+    return;
+  }
+  kochCurve(len / 3, level - 1);
+  left(60);
+  kochCurve(len / 3, level - 1);
+  right(120);
+  kochCurve(len / 3, level - 1);
+  left(60);
+  kochCurve(len / 3, level - 1);
+}
+
+void fract::kochCurveAlt(double len, int sign, int level) {
+  if (level == 0) {
+    forward(len);
+    return;
+  }
+  kochCurveAlt(len / 3, -sign, level - 1);
+  left(sign * 60);
+  kochCurveAlt(len / 3, sign, level - 1);
+  right(sign * 120);
+  kochCurveAlt(len / 3, sign, level - 1);
+  left(sign * 60);
+  kochCurveAlt(len / 3, -sign, level - 1);
+}
+
+void fract::sTriangle(double side, int level) {
+  for (int i = 0; i < 3; i++) {
+    forward(side); left(120);
+  }
+  if (level == 0) return;
+  sTriangle(side / 2, level - 1);
+  penUp(); forward(side / 2); penDown();
+  sTriangle(side / 2, level - 1);
+  penUp(); left(120); forward(side / 2); right(120); penDown();
+  sTriangle(side / 2, level - 1);
+  penUp(); right(120); forward(side / 2); left(120); penDown();
+}
+
+void fract::canopy(double step, int level, double angle, double ratio) {
+  if (level == 0) return;
+  forward(step);
+  left(angle / 2);
+  canopy(step * ratio, level - 1, angle, ratio);
+  right(angle);
+  canopy(step * ratio, level - 1, angle, ratio);
+  left(angle / 2);
+  forward(-step);
+}
+
+void fract::binaryTree(double boxHeight, double boxWidth, int levels) {
+  if (levels == 0) return;
+
+  double edgeHeight = boxHeight / levels;
+  double angle = arctangent((boxWidth / 4) / edgeHeight);
+  double edgeLen = edgeHeight / cosine(angle);
+
+  double childBoxHeight = boxHeight - edgeHeight;
+  double childBoxWidth = boxWidth / 2;
+
+  for (int i = 0; i < 2; i++, angle = -angle) {
+    left(angle); forward(edgeLen); left(-angle);
+    binaryTree(childBoxHeight, childBoxWidth, levels - 1);
+    left(angle); forward(-edgeLen); left(-angle);
+  }
+}
+
+void fract::hilbertCurve(double step, int sign, int level) {
+  int deg = sign * 90;
+  double len = (pow(2, level + 1) - 1) * step;
+  if (level == 0) {
+    left(deg); forward(len);
+    right(deg); forward(len);
+    right(deg); forward(len);
+    left(deg);
+    return;
+  }
+
+  left(deg);
+  hilbertCurve(step, -sign, level - 1); forward(step);
+  right(deg);
+  hilbertCurve(step, sign, level - 1); forward(step);
+  hilbertCurve(step, sign, level - 1);
+  right(deg); forward(step);
+  hilbertCurve(step, -sign, level - 1);
+  left(deg);
+}
+` },
+  ],
 };
 
 export function defaultFiles() {

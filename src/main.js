@@ -1,4 +1,7 @@
 import { EditorView, basicSetup } from 'codemirror';
+import { indentLess, indentMore } from '@codemirror/commands';
+import { indentUnit } from '@codemirror/language';
+import { keymap } from '@codemirror/view';
 import { cpp } from '@codemirror/lang-cpp';
 import { oneDark } from '@codemirror/theme-one-dark';
 import './styles.css';
@@ -18,10 +21,18 @@ const eventSab = makeEventBuffer();
 const stdinSab = makeStdinBuffer();
 
 /* ---------------- editor ---------------- */
+const insertFourSpaces = (view) => {
+  if (view.state.readOnly) return false;
+  if (view.state.selection.ranges.some(range => !range.empty)) return indentMore(view);
+  view.dispatch(view.state.replaceSelection('    '));
+  return true;
+};
+
 const view = new EditorView({
   doc: files[active].content,
   extensions: [
-    basicSetup, cpp(), oneDark,
+    keymap.of([{ key: 'Tab', run: insertFourSpaces, shift: indentLess }]),
+    basicSetup, cpp(), indentUnit.of('    '), oneDark,
     EditorView.updateListener.of(u => {
       if (u.docChanged) files[active].content = u.state.doc.toString();
     }),

@@ -92,11 +92,15 @@ Supported API: `Turtle`, `Canvas`, `Sprite`, `Line`, `Circle`, `Rectangle`,
 Multiple files are supported. Use the **+** button next to the file tabs to add
 `.cpp` files and headers. Each `.cpp` is compiled as its own translation unit
 and the objects are linked together, just like a desktop compiler, so quoted
-includes (`#include "utils.h"`) resolve between your files.
+includes (`#include "utils.h"`) resolve between your files. The **Fractals**
+example is a ready-made three-file project (`main.cpp`, `fractals.h`,
+`fractals.cpp`).
 
 The **Format** button next to the file tabs (or `Ctrl`/`Cmd` + `Shift` + `F`)
 runs real clang-format in WebAssembly on the active file. The download button
-beside **+** saves that file with its exact tab name.
+beside **+** saves that file with its exact tab name. In the editor, **Tab**
+inserts four spaces and **Shift+Tab** outdents without moving focus out of the
+editor.
 While a program is running, **Run** stays disabled and **Stop** terminates it;
 the editor and console are immediately usable again. Drag the borders between
 the editor/output and graphics/console to resize those panels; double-click a
